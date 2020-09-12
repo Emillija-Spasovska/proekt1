@@ -1,2 +1,0 @@
-# proekt1
-proekt
