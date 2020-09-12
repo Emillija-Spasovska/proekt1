@@ -1,30 +1,95 @@
 ---
-title: "Rabotilnica"
+title: "grafik - tazna statistika"
 author: "Emilija"
 date: "9/11/2020"
-output: html_document
+output: 
+  html_document:
+    df_print: paged
+    fig_cap: yes
+    toc: yes
+
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, cache = FALSE)
+```
+```{r}
+library(tidyverse)
+library(lubridate)
+library(viridis)
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r}
+df<-readr::read_csv("https://raw.githubusercontent.com/discindo/natochak/master/mvr-data.csv")
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+#keep the traffic accidents
+traffacc <- df %>%
+  #separate Date of event; having months as observations might be useful.
+  separate(DateOfEvent, c("Day", "Month", "Year"), sep = "\\.", remove = FALSE) %>%
+  #separate hours:mins, make numeric
+  separate(Hour, c("H", "M"), sep = "\\:", remove = FALSE) %>%
+  mutate(Hours = as.numeric(H)) %>%
+  #filter so we keep just the traffic accidents
+  filter(Event == "сообраќајна незгода") %>% 
+  mutate(Outcome = ordered(Outcome, levels = c("непознато", "повреда", "тешка повреда", "животна опасност", "смрт")))
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+#keep the traffic accidents
+traffacc <- df %>%
+  #separate Date of event; having months as observations might be useful.
+  separate(DateOfEvent, c("Day", "Month", "Year"), sep = "\\.", remove = FALSE) %>%
+  #separate hours:mins, make numeric
+  separate(Hour, c("H", "M"), sep = "\\:", remove = FALSE) %>%
+  mutate(Hours = as.numeric(H)) %>%
+  #filter so we keep just the traffic accidents
+  filter(Event == "сообраќајна незгода") %>% 
+  mutate(Outcome = ordered(Outcome, levels = c("непознато", "повреда", "тешка повреда", "животна опасност", "смрт")))
+```
+
+```{r}
+traffacc <- traffacc %>% 
+  mutate(Mun2 = ifelse(is.na(Mun), Place, Mun)) %>%
+  mutate(MunLatin = stringi::stri_trans_general(Mun2, 'latin')) %>%
+  mutate(MunLatin = ifelse(MunLatin == "Ǵorče Petrov", "Gjorče Petrov", MunLatin))
+
+```
+
+```{r}
+# time as time!
+traffacc <- traffacc %>% 
+  mutate(DateTime= parse_date_time(paste(DateOfEvent, Hour, sep=" "), orders="dmy HM")) %>% 
+  mutate(TimeHM=parse_time(x = Hour, format="%H:%M")) %>%
+  mutate(TimeH=hour(x = DateTime)) %>% 
+  mutate(TypeOfRoadMK=case_when(
+    TypeOfRoad == 'Open'  ~ 'Отворен',
+    TypeOfRoad == 'Rural' ~ 'Селски',
+    TypeOfRoad == 'Urban' ~ 'Градски'
+  ))
+```
+
+```{r, fig.width=10}
+ggplot(traffacc, aes(
+  x = AgeV1,
+  y = TimeHM,
+  fill = Outcome,
+  ordered = TRUE
+)) +
+  geom_point(size = 3, aplha = 0.9, pch = 21) +
+  labs(fill = "Вид на повреда") +
+  scale_color_viridis(discrete = TRUE, option = "D") +
+  facet_wrap("TypeOfRoadMK", ncol = 3) +
+  theme(legend.position = "top") +
+  scale_y_time() +
+  labs(title = "Сообраќајни незгоди по години на велосипедист и час во денот", x = "Возраст на велосипедист", y = "Час од денот во кој е склучена незгода") +
+  ggsave("plot.png")
+
+
+
+```
+
+
